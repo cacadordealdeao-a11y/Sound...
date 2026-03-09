@@ -13,33 +13,30 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Criar Estrutura do App
+      - name: Setup Direto
         run: |
           # 1. Cria o projeto (Resolve o erro de nome)
           flutter create --platforms android --org com.soundbit --project-name sound_bit .
           
-          # 2. RESOLUÇÃO DEFINITIVA: Em vez de esperar ou usar SED, vamos sobrescrever o arquivo
-          # Isso mata o erro "No such file"
-          mkdir -p android/app
+          # 2. Configura o Namespace na marra para evitar erro de Gradle
           echo "android.namespace=com.soundbit.sound_bit" > android/gradle.properties
           
-          # 3. Cria o arquivo de dependências limpo
+          # 3. Define as dependências básicas
           echo "name: sound_bit
           environment:
             sdk: '>=3.0.0 <4.0.0'
           dependencies:
             flutter:
               sdk: flutter
-            just_audio: ^0.9.36
-            on_audio_query: ^2.5.0
           flutter:
             uses-material-design: true" > pubspec.yaml
 
-      - name: Injetar Interface Clean
+      - name: Injetar Visual Clean (Sem Erros)
         run: |
           mkdir -p lib
           cat << 'EOF' > lib/main.dart
           import 'package:flutter/material.dart';
+
           void main() => runApp(MaterialApp(
             debugShowCheckedModeBanner: false,
             home: Scaffold(
@@ -47,19 +44,23 @@ jobs:
               appBar: AppBar(
                 elevation: 0,
                 backgroundColor: Colors.transparent,
-                title: const Text("SOUND BIT", style: TextStyle(color: Color(0xFF013220), fontFamily: 'serif', fontWeight: FontWeight.bold)),
+                title: const Text("SOUND BIT", 
+                  style: TextStyle(color: Color(0xFF013220), fontFamily: 'serif', fontWeight: FontWeight.bold)
+                ),
               ),
-              body: const Center(child: Text("SISTEMA OPERACIONAL ATIVO", style: TextStyle(color: Color(0xFF013220), fontFamily: 'serif'))),
+              body: const Center(
+                child: Text("SISTEMA OPERACIONAL ATIVO", 
+                  style: TextStyle(color: Color(0xFF013220), fontFamily: 'serif')
+                ),
+              ),
             ),
           ));
           EOF
 
-      - name: Gerar APK
-        run: |
-          # Otimização para o build não demorar tanto e não dar timeout
-          flutter build apk --debug --no-pub --offline || flutter build apk --debug
+      - name: Compilar APK (Modo Blindado)
+        run: flutter build apk --debug
 
-      - name: Download do APK
+      - name: Baixe o APK aqui
         uses: actions/upload-artifact@v4
         with:
           name: sound-bit-apk
