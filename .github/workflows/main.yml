@@ -5,24 +5,104 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
       
-      - name: Criar Projeto do Zero
+      - name: Criar Base do Projeto
         run: |
-          # O segredo está no --project-name sound_bit para evitar o erro do print
           flutter create --platforms android --org com.soundbit --project-name sound_bit .
           
-      - name: Injetar Código
+      - name: Configurar Receita (Pubspec)
+        run: |
+          echo "name: sound_bit
+          description: Music Player Retro
+          publish_to: 'none'
+          version: 1.0.0+1
+          environment:
+            sdk: '>=3.0.0 <4.0.0'
+          dependencies:
+            flutter:
+              sdk: flutter
+            just_audio: ^0.9.36
+            on_audio_query: ^2.5.0
+            permission_handler: ^11.0.0
+          flutter:
+            uses-material-design: true" > pubspec.yaml
+
+      - name: Injetar Código do App
         run: |
           mkdir -p lib
-          echo 'import "package:flutter/material.dart"; void main() => runApp(MaterialApp(home: Scaffold(backgroundColor: Color(0xFFF5F5DC), body: Center(child: Text("SOUND BIT ONLINE", style: TextStyle(color: Colors.grey, fontSize: 20))))));' > lib/main.dart
+          cat << 'EOF' > lib/main.dart
+          import 'package:flutter/material.dart';
+          import 'package:just_audio/just_audio.dart';
+          import 'package:on_audio_query/on_audio_query.dart';
+          import 'package:permission_handler/permission_handler.dart';
 
-      - name: Gerar APK
+          void main() => runApp(const MaterialApp(home: SoundBit(), debugShowCheckedModeBanner: false));
+
+          class SoundBit extends StatefulWidget {
+            const SoundBit({super.key});
+            @override
+            State<SoundBit> createState() => _SoundBitState();
+          }
+
+          class _SoundBitState extends State<SoundBit> {
+            final OnAudioQuery _audioQuery = OnAudioQuery();
+            final AudioPlayer _player = AudioPlayer();
+
+            @override
+            void initState() {
+              super.initState();
+              _requestPermission();
+            }
+
+            void _requestPermission() async {
+              await Permission.storage.request();
+              setState(() {});
+            }
+
+            @override
+            Widget build(BuildContext context) {
+              return Scaffold(
+                backgroundColor: const Color(0xFFF5F5DC),
+                appBar: AppBar(
+                  title: const Text("SOUND BIT", style: TextStyle(color: Color(0xFF808080), fontWeight: FontWeight.bold)),
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                ),
+                body: FutureBuilder<List<SongModel>>(
+                  future: _audioQuery.querySongs(sortType: null, orderType: OrderType.ASC_OR_SMALLER, uriType: UriType.EXTERNAL, ignoreCase: true),
+                  builder: (context, item) {
+                    if (item.data == null) return const Center(child: CircularProgressIndicator());
+                    if (item.data!.isEmpty) return const Center(child: Text("NENHUMA MÚSICA ENCONTRADA", style: TextStyle(color: Color(0xFF808080))));
+                    return ListView.builder(
+                      itemCount: item.data!.length,
+                      itemBuilder: (context, index) => ListTile(
+                        leading: const Icon(Icons.music_note, color: Color(0xFF808080)),
+                        title: Text(item.data![index].title, style: const TextStyle(color: Color(0xFF808080))),
+                        subtitle: Text(item.data![index].artist ?? "Desconhecido", style: const TextStyle(color: Color(0xFFBCBCBC))),
+                        onTap: () async {
+                          await _player.setAudioSource(AudioSource.uri(Uri.parse(item.data![index].uri!)));
+                          _player.play();
+                        },
+                      ),
+                    );
+                  },
+                ),
+              );
+            }
+          }
+          EOF
+
+      - name: Gerar APK Final
         run: flutter build apk --debug
 
-      - name: Enviar Ficheiro
+      - name: Enviar APK para Download
         uses: actions/upload-artifact@v4
         with:
           name: sound-bit-apk
