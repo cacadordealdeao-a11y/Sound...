@@ -1,5 +1,7 @@
 name: Build Android APK
-on: push
+on:
+  push:
+    branches: [ master, main ]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,11 +15,12 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Setup Android Project
+      - name: Create Project Structure
         run: |
+          # Este comando cria as pastas que o erro reclama
           flutter create --platforms android --org com.soundbit .
-          # Comando para corrigir o erro de Namespace diretamente no ficheiro build.gradle
-          sed -i 's/namespace = .*/namespace = "com.soundbit.sound_bit"/' android/app/build.gradle || echo "namespace \"com.soundbit.sound_bit\"" >> android/app/build.gradle
+          # Define o nome interno do app para o Android
+          echo "android.namespace=com.soundbit.sound_bit" >> android/gradle.properties
 
       - name: Build APK
         run: flutter build apk --debug
