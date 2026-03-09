@@ -13,20 +13,21 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Criar e Corrigir Projeto
+      - name: Preparar Sistema
         run: |
-          # 1. Cria o projeto (Resolve erro de nome)
+          # Resolve o erro de nome e cria as pastas
           flutter create --platforms android --org com.soundbit --project-name sound_bit .
           
-          # 2. Espera o arquivo build.gradle aparecer no sistema (Resolve erro)
-          until [ -f android/app/build.gradle ]; do sleep 1; done
+          # FORÇA A ESPERA: Resolve o erro "No such file"
+          timeout 30s bash -c 'until [ -f android/app/build.gradle ]; do sleep 1; done'
           
-          # 3. Ajusta a versão mínima do Android para a música funcionar
+          # Ajusta a versão para o player de música funcionar
           sed -i 's/minSdkVersion .*/minSdkVersion 21/' android/app/build.gradle
           echo "android.namespace=com.soundbit.sound_bit" >> android/gradle.properties
 
-      - name: Configurar Dependencias
+      - name: Configurar App
         run: |
+          # Configura as dependências de música
           echo "name: sound_bit
           environment:
             sdk: '>=3.0.0 <4.0.0'
@@ -39,7 +40,7 @@ jobs:
           flutter:
             uses-material-design: true" > pubspec.yaml
 
-      - name: Injetar Codigo do App (Visual e Audio)
+      - name: Injetar Código Visual Clean
         run: |
           mkdir -p lib
           cat << 'EOF' > lib/main.dart
@@ -61,31 +62,25 @@ jobs:
                 appBar: AppBar(
                   elevation: 0,
                   backgroundColor: Colors.transparent,
-                  title: const Text("SOUND BIT", style: TextStyle(color: Color(0xFF013220), fontFamily: 'monospace', fontWeight: FontWeight.bold)),
-                  bottom: PreferredSize(
-                    preferredSize: const Size.fromHeight(6),
-                    child: Row( // Arco-íris Atari
-                      children: [
-                        Expanded(child: Container(height: 6, color: Colors.red)),
-                        Expanded(child: Container(height: 6, color: Colors.orange)),
-                        Expanded(child: Container(height: 6, color: Colors.yellow)),
-                        Expanded(child: Container(height: 6, color: Colors.green)),
-                        Expanded(child: Container(height: 6, color: Colors.blue)),
-                        Expanded(child: Container(height: 6, color: Colors.purple)),
-                      ],
-                    ),
+                  title: const Text("SOUND BIT", 
+                    style: TextStyle(
+                      color: Color(0xFF013220), // Verde Escuro
+                      fontFamily: 'serif', // Máquina de escrever
+                      fontWeight: FontWeight.bold
+                    )
                   ),
                 ),
                 body: FutureBuilder<List<SongModel>>(
                   future: audioQuery.querySongs(uriType: UriType.EXTERNAL),
                   builder: (context, item) {
                     if (!item.hasData) return const Center(child: CircularProgressIndicator(color: Color(0xFF013220)));
-                    if (item.data!.isEmpty) return const Center(child: Text("NENHUMA MÚSICA", style: TextStyle(fontFamily: 'monospace')));
+                    if (item.data!.isEmpty) return const Center(child: Text("MEMÓRIA VAZIA", style: TextStyle(color: Color(0xFF013220), fontFamily: 'serif')));
                     return ListView.builder(
                       itemCount: item.data!.length,
                       itemBuilder: (context, index) => ListTile(
-                        leading: const Icon(Icons.play_circle_fill, color: Color(0xFF013220)),
-                        title: Text(item.data![index].title.toUpperCase(), style: const TextStyle(color: Color(0xFF013220), fontFamily: 'monospace')),
+                        leading: const Icon(Icons.play_arrow, color: Color(0xFF013220)),
+                        title: Text(item.data![index].title.toUpperCase(), 
+                          style: const TextStyle(color: Color(0xFF013220), fontFamily: 'serif', fontSize: 13)),
                         onTap: () async {
                           await player.setAudioSource(AudioSource.uri(Uri.parse(item.data![index].uri!)));
                           player.play();
@@ -99,10 +94,10 @@ jobs:
           }
           EOF
 
-      - name: Gerar APK Final
+      - name: Compilar APK
         run: flutter build apk --debug
 
-      - name: Upload do Resultado
+      - name: Resultado para Download
         uses: actions/upload-artifact@v4
         with:
           name: sound-bit-apk
