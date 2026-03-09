@@ -13,16 +13,22 @@ jobs:
         with:
           channel: 'stable'
       
-      - name: Criar Base do Projeto
+      - name: Criar Base Atari
         run: |
           flutter create --platforms android --org com.soundbit --project-name sound_bit .
+          # Ajusta a versão mínima do Android para o player de música funcionar
+          sed -i 's/minSdkVersion .*/minSdkVersion 21/' android/app/build.gradle
           
-      - name: Configurar Receita (Pubspec)
+      - name: Configurar Ícone
+        run: |
+          if [ -f "app_icon.png" ]; then
+            mkdir -p android/app/src/main/res/mipmap-xhdpi
+            cp app_icon.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          fi
+
+      - name: Configurar Receita
         run: |
           echo "name: sound_bit
-          description: Music Player Retro
-          publish_to: 'none'
-          version: 1.0.0+1
           environment:
             sdk: '>=3.0.0 <4.0.0'
           dependencies:
@@ -34,58 +40,51 @@ jobs:
           flutter:
             uses-material-design: true" > pubspec.yaml
 
-      - name: Injetar Código do App
+      - name: Injetar Código Atari Retro
         run: |
           mkdir -p lib
           cat << 'EOF' > lib/main.dart
           import 'package:flutter/material.dart';
           import 'package:just_audio/just_audio.dart';
           import 'package:on_audio_query/on_audio_query.dart';
-          import 'package:permission_handler/permission_handler.dart';
 
-          void main() => runApp(const MaterialApp(home: SoundBit(), debugShowCheckedModeBanner: false));
+          void main() => runApp(MaterialApp(
+            home: SoundBit(),
+            debugShowCheckedModeBanner: false,
+            theme: ThemeData(fontFamily: 'Courier'), // Estilo Máquina de Escrever
+          ));
 
-          class SoundBit extends StatefulWidget {
-            const SoundBit({super.key});
-            @override
-            State<SoundBit> createState() => _SoundBitState();
-          }
-
-          class _SoundBitState extends State<SoundBit> {
+          class SoundBit extends StatelessWidget {
             final OnAudioQuery _audioQuery = OnAudioQuery();
             final AudioPlayer _player = AudioPlayer();
 
             @override
-            void initState() {
-              super.initState();
-              _requestPermission();
-            }
-
-            void _requestPermission() async {
-              await Permission.storage.request();
-              setState(() {});
-            }
-
-            @override
             Widget build(BuildContext context) {
               return Scaffold(
-                backgroundColor: const Color(0xFFF5F5DC),
+                backgroundColor: Color(0xFFFAF0E6), // Off-white
                 appBar: AppBar(
-                  title: const Text("SOUND BIT", style: TextStyle(color: Color(0xFF808080), fontWeight: FontWeight.bold)),
-                  backgroundColor: Colors.transparent,
                   elevation: 0,
+                  backgroundColor: Colors.transparent,
+                  title: Text("SOUND BIT", style: TextStyle(color: Color(0xFF013220), fontWeight: FontWeight.bold)),
+                  bottom: PreferredSize(
+                    preferredSize: Size.fromHeight(4),
+                    child: Container(
+                      height: 4,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: [Colors.red, Colors.orange, Colors.yellow, Colors.green, Colors.blue, Colors.purple]),
+                      ),
+                    ),
+                  ),
                 ),
                 body: FutureBuilder<List<SongModel>>(
-                  future: _audioQuery.querySongs(sortType: null, orderType: OrderType.ASC_OR_SMALLER, uriType: UriType.EXTERNAL, ignoreCase: true),
+                  future: _audioQuery.querySongs(uriType: UriType.EXTERNAL),
                   builder: (context, item) {
-                    if (item.data == null) return const Center(child: CircularProgressIndicator());
-                    if (item.data!.isEmpty) return const Center(child: Text("NENHUMA MÚSICA ENCONTRADA", style: TextStyle(color: Color(0xFF808080))));
+                    if (!item.hasData) return Center(child: CircularProgressIndicator(color: Color(0xFF013220)));
                     return ListView.builder(
                       itemCount: item.data!.length,
                       itemBuilder: (context, index) => ListTile(
-                        leading: const Icon(Icons.music_note, color: Color(0xFF808080)),
-                        title: Text(item.data![index].title, style: const TextStyle(color: Color(0xFF808080))),
-                        subtitle: Text(item.data![index].artist ?? "Desconhecido", style: const TextStyle(color: Color(0xFFBCBCBC))),
+                        leading: Icon(Icons.keyboard_arrow_right, color: Color(0xFF013220)),
+                        title: Text(item.data![index].title.toUpperCase(), style: TextStyle(color: Color(0xFF013220), fontSize: 14)),
                         onTap: () async {
                           await _player.setAudioSource(AudioSource.uri(Uri.parse(item.data![index].uri!)));
                           _player.play();
@@ -102,7 +101,7 @@ jobs:
       - name: Gerar APK Final
         run: flutter build apk --debug
 
-      - name: Enviar APK para Download
+      - name: Feliz APK para Download
         uses: actions/upload-artifact@v4
         with:
           name: sound-bit-apk
