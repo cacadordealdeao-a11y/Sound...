@@ -1,38 +1,32 @@
-name: Build APK
+name: Build SOUND BIT Final
 on: push
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Código
-        uses: actions/checkout@v4
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
-      - name: Criar Projeto e Corrigir Erros
+      - name: Criar e Corrigir Projeto
         run: |
-          # 1. Cria o projeto com nome válido (resolve o erro)
+          # 1. Cria o projeto (Resolve erro de nome)
           flutter create --platforms android --org com.soundbit --project-name sound_bit .
           
-          # 2. Aguarda 2 segundos para garantir que o sistema de arquivos registrou as pastas
-          sleep 2
+          # 2. Espera o arquivo build.gradle aparecer no sistema (Resolve erro)
+          until [ -f android/app/build.gradle ]; do sleep 1; done
           
-          # 3. Configura o Namespace e Versão (resolve o erro)
-          echo "android.namespace=com.soundbit.sound_bit" >> android/gradle.properties
+          # 3. Ajusta a versão mínima do Android para a música funcionar
           sed -i 's/minSdkVersion .*/minSdkVersion 21/' android/app/build.gradle
+          echo "android.namespace=com.soundbit.sound_bit" >> android/gradle.properties
 
-      - name: Gerar Arquivos do App
+      - name: Configurar Dependencias
         run: |
-          # Configura as dependências de música
           echo "name: sound_bit
           environment:
             sdk: '>=3.0.0 <4.0.0'
@@ -45,42 +39,70 @@ jobs:
           flutter:
             uses-material-design: true" > pubspec.yaml
 
-          # Cria a pasta lib e o código visual
+      - name: Injetar Codigo do App (Visual e Audio)
+        run: |
           mkdir -p lib
           cat << 'EOF' > lib/main.dart
           import 'package:flutter/material.dart';
+          import 'package:just_audio/just_audio.dart';
+          import 'package:on_audio_query/on_audio_query.dart';
 
-          void main() => runApp(MaterialApp(
-            debugShowCheckedModeBanner: false,
-            home: Scaffold(
-              backgroundColor: const Color(0xFFFAF0E6),
-              appBar: AppBar(
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                title: const Text("SOUND BIT", style: TextStyle(color: Color(0xFF013220), fontFamily: 'monospace')),
-                bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(5),
-                  child: Row(
-                    children: [
-                      Expanded(child: Container(height: 5, color: Colors.red)),
-                      Expanded(child: Container(height: 5, color: Colors.orange)),
-                      Expanded(child: Container(height: 5, color: Colors.yellow)),
-                      Expanded(child: Container(height: 5, color: Colors.green)),
-                      Expanded(child: Container(height: 5, color: Colors.blue)),
-                      Expanded(child: Container(height: 5, color: Colors.purple)),
-                    ],
+          void main() => runApp(const MaterialApp(home: SoundBit(), debugShowCheckedModeBanner: false));
+
+          class SoundBit extends StatelessWidget {
+            const SoundBit({super.key});
+            @override
+            Widget build(BuildContext context) {
+              final player = AudioPlayer();
+              final audioQuery = OnAudioQuery();
+
+              return Scaffold(
+                backgroundColor: const Color(0xFFFAF0E6), // Off-white
+                appBar: AppBar(
+                  elevation: 0,
+                  backgroundColor: Colors.transparent,
+                  title: const Text("SOUND BIT", style: TextStyle(color: Color(0xFF013220), fontFamily: 'monospace', fontWeight: FontWeight.bold)),
+                  bottom: PreferredSize(
+                    preferredSize: const Size.fromHeight(6),
+                    child: Row( // Arco-íris Atari
+                      children: [
+                        Expanded(child: Container(height: 6, color: Colors.red)),
+                        Expanded(child: Container(height: 6, color: Colors.orange)),
+                        Expanded(child: Container(height: 6, color: Colors.yellow)),
+                        Expanded(child: Container(height: 6, color: Colors.green)),
+                        Expanded(child: Container(height: 6, color: Colors.blue)),
+                        Expanded(child: Container(height: 6, color: Colors.purple)),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              body: const Center(child: Text("SISTEMA OPERACIONAL ATIVO", style: TextStyle(color: Color(0xFF013220), fontFamily: 'monospace'))),
-            ),
-          ));
+                body: FutureBuilder<List<SongModel>>(
+                  future: audioQuery.querySongs(uriType: UriType.EXTERNAL),
+                  builder: (context, item) {
+                    if (!item.hasData) return const Center(child: CircularProgressIndicator(color: Color(0xFF013220)));
+                    if (item.data!.isEmpty) return const Center(child: Text("NENHUMA MÚSICA", style: TextStyle(fontFamily: 'monospace')));
+                    return ListView.builder(
+                      itemCount: item.data!.length,
+                      itemBuilder: (context, index) => ListTile(
+                        leading: const Icon(Icons.play_circle_fill, color: Color(0xFF013220)),
+                        title: Text(item.data![index].title.toUpperCase(), style: const TextStyle(color: Color(0xFF013220), fontFamily: 'monospace')),
+                        onTap: () async {
+                          await player.setAudioSource(AudioSource.uri(Uri.parse(item.data![index].uri!)));
+                          player.play();
+                        },
+                      ),
+                    );
+                  },
+                ),
+              );
+            }
+          }
           EOF
 
-      - name: Compilar APK
+      - name: Gerar APK Final
         run: flutter build apk --debug
 
-      - name: Disponibilizar Download
+      - name: Upload do Resultado
         uses: actions/upload-artifact@v4
         with:
           name: sound-bit-apk
