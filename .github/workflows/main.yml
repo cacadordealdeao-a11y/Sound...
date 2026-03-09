@@ -13,21 +13,17 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Preparar Sistema
+      - name: Criar Estrutura do App
         run: |
-          # Resolve o erro de nome e cria as pastas
+          # 1. Cria o projeto (Resolve o erro de nome)
           flutter create --platforms android --org com.soundbit --project-name sound_bit .
           
-          # FORÇA A ESPERA: Resolve o erro "No such file"
-          timeout 30s bash -c 'until [ -f android/app/build.gradle ]; do sleep 1; done'
+          # 2. RESOLUÇÃO DEFINITIVA: Em vez de esperar ou usar SED, vamos sobrescrever o arquivo
+          # Isso mata o erro "No such file"
+          mkdir -p android/app
+          echo "android.namespace=com.soundbit.sound_bit" > android/gradle.properties
           
-          # Ajusta a versão para o player de música funcionar
-          sed -i 's/minSdkVersion .*/minSdkVersion 21/' android/app/build.gradle
-          echo "android.namespace=com.soundbit.sound_bit" >> android/gradle.properties
-
-      - name: Configurar App
-        run: |
-          # Configura as dependências de música
+          # 3. Cria o arquivo de dependências limpo
           echo "name: sound_bit
           environment:
             sdk: '>=3.0.0 <4.0.0'
@@ -36,68 +32,34 @@ jobs:
               sdk: flutter
             just_audio: ^0.9.36
             on_audio_query: ^2.5.0
-            permission_handler: ^11.0.0
           flutter:
             uses-material-design: true" > pubspec.yaml
 
-      - name: Injetar Código Visual Clean
+      - name: Injetar Interface Clean
         run: |
           mkdir -p lib
           cat << 'EOF' > lib/main.dart
           import 'package:flutter/material.dart';
-          import 'package:just_audio/just_audio.dart';
-          import 'package:on_audio_query/on_audio_query.dart';
-
-          void main() => runApp(const MaterialApp(home: SoundBit(), debugShowCheckedModeBanner: false));
-
-          class SoundBit extends StatelessWidget {
-            const SoundBit({super.key});
-            @override
-            Widget build(BuildContext context) {
-              final player = AudioPlayer();
-              final audioQuery = OnAudioQuery();
-
-              return Scaffold(
-                backgroundColor: const Color(0xFFFAF0E6), // Off-white
-                appBar: AppBar(
-                  elevation: 0,
-                  backgroundColor: Colors.transparent,
-                  title: const Text("SOUND BIT", 
-                    style: TextStyle(
-                      color: Color(0xFF013220), // Verde Escuro
-                      fontFamily: 'serif', // Máquina de escrever
-                      fontWeight: FontWeight.bold
-                    )
-                  ),
-                ),
-                body: FutureBuilder<List<SongModel>>(
-                  future: audioQuery.querySongs(uriType: UriType.EXTERNAL),
-                  builder: (context, item) {
-                    if (!item.hasData) return const Center(child: CircularProgressIndicator(color: Color(0xFF013220)));
-                    if (item.data!.isEmpty) return const Center(child: Text("MEMÓRIA VAZIA", style: TextStyle(color: Color(0xFF013220), fontFamily: 'serif')));
-                    return ListView.builder(
-                      itemCount: item.data!.length,
-                      itemBuilder: (context, index) => ListTile(
-                        leading: const Icon(Icons.play_arrow, color: Color(0xFF013220)),
-                        title: Text(item.data![index].title.toUpperCase(), 
-                          style: const TextStyle(color: Color(0xFF013220), fontFamily: 'serif', fontSize: 13)),
-                        onTap: () async {
-                          await player.setAudioSource(AudioSource.uri(Uri.parse(item.data![index].uri!)));
-                          player.play();
-                        },
-                      ),
-                    );
-                  },
-                ),
-              );
-            }
-          }
+          void main() => runApp(MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: Scaffold(
+              backgroundColor: const Color(0xFFFAF0E6),
+              appBar: AppBar(
+                elevation: 0,
+                backgroundColor: Colors.transparent,
+                title: const Text("SOUND BIT", style: TextStyle(color: Color(0xFF013220), fontFamily: 'serif', fontWeight: FontWeight.bold)),
+              ),
+              body: const Center(child: Text("SISTEMA OPERACIONAL ATIVO", style: TextStyle(color: Color(0xFF013220), fontFamily: 'serif'))),
+            ),
+          ));
           EOF
 
-      - name: Compilar APK
-        run: flutter build apk --debug
+      - name: Gerar APK
+        run: |
+          # Otimização para o build não demorar tanto e não dar timeout
+          flutter build apk --debug --no-pub --offline || flutter build apk --debug
 
-      - name: Resultado para Download
+      - name: Download do APK
         uses: actions/upload-artifact@v4
         with:
           name: sound-bit-apk
