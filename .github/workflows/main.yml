@@ -11,14 +11,13 @@ jobs:
       
       - name: Criar Projeto do Zero
         run: |
-          # Este comando força a criação de TODOS os ficheiros que faltam
-          flutter create --platforms android --org com.soundbit .
+          # O segredo está no --project-name sound_bit para evitar o erro do print
+          flutter create --platforms android --org com.soundbit --project-name sound_bit .
           
-      - name: Substituir Código
+      - name: Injetar Código
         run: |
-          # Isto garante que o seu código vai para o lugar certo
           mkdir -p lib
-          echo 'import "package:flutter/material.dart"; void main() => runApp(MaterialApp(home: Scaffold(body: Center(child: Text("SOUND BIT FUNCIONOU!")))));' > lib/main.dart
+          echo 'import "package:flutter/material.dart"; void main() => runApp(MaterialApp(home: Scaffold(backgroundColor: Color(0xFFF5F5DC), body: Center(child: Text("SOUND BIT ONLINE", style: TextStyle(color: Colors.grey, fontSize: 20))))));' > lib/main.dart
 
       - name: Gerar APK
         run: flutter build apk --debug
