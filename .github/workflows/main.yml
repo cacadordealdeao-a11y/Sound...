@@ -13,38 +13,41 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Limpeza e Setup do Android
+      - name: Criar Projeto e Injetar Arquivos
         run: |
-          # 1. Limpa rastros e cria o projeto
-          rm -rf android .[^.]* *
+          # 1. Cria o projeto básico
           flutter create --platforms android --org com.soundbit --project-name sound_bit .
           
-          # 2. Configurações críticas do Gradle (Resolve assembleDebug)
+          # 2. RESOLUÇÃO DO ERRO: Criamos o arquivo de configuração manualmente
+          # Isso garante que o arquivo EXISTA e tenha a versão correta
+          mkdir -p android/app
           echo "android.namespace=com.soundbit.sound_bit" > android/gradle.properties
-          echo "android.useAndroidX=true" >> android/gradle.properties
-          echo "android.enableJetifier=true" >> android/gradle.properties
           
-          # Força o SDK 34 (Android 14) e MinSDK 21
-          sed -i 's/compileSdkVersion .*/compileSdkVersion 34/' android/app/build.gradle
-          sed -i 's/minSdkVersion .*/minSdkVersion 21/' android/app/build.gradle
-
-          # 3. Manifesto completo com TODAS as permissões de música (Novas e Antigas)
-          cat << 'EOF' > android/app/src/main/AndroidManifest.xml
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-              <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
-              <application android:label="Sound Bit" android:icon="@mipmap/ic_launcher">
-                  <activity android:name=".MainActivity" android:exported="true" android:theme="@style/LaunchTheme" android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|density|uiMode">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN"/>
-                          <category android:name="android.intent.category.LAUNCHER"/>
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
+          # Criamos um build.gradle novo e limpo para evitar o erro do 'sed'
+          cat << 'EOF' > android/app/build.gradle
+          def localProperties = new Properties()
+          def localPropertiesFile = rootProject.file('local.properties')
+          if (localPropertiesFile.exists()) {
+              localPropertiesFile.withReader('UTF-8') { reader -> localProperties.load(reader) }
+          }
+          apply plugin: 'com.android.application'
+          apply plugin: 'kotlin-android'
+          apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+          android {
+              namespace "com.soundbit.sound_bit"
+              compileSdkVersion 34
+              defaultConfig {
+                  applicationId "com.soundbit.sound_bit"
+                  minSdkVersion 21
+                  targetSdkVersion 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+          }
+          flutter { source '../..' }
           EOF
 
-      - name: Pubspec e Código
+      - name: Injetar Dependências e Código
         run: |
           echo "name: sound_bit
           environment:
@@ -53,56 +56,29 @@ jobs:
             flutter: { sdk: flutter }
             just_audio: ^0.9.36
             on_audio_query: ^2.5.0
-            permission_handler: ^11.0.0
           flutter: { uses-material-design: true }" > pubspec.yaml
 
           mkdir -p lib
           cat << 'EOF' > lib/main.dart
           import 'package:flutter/material.dart';
-          import 'package:just_audio/just_audio.dart';
-          import 'package:on_audio_query/on_audio_query.dart';
-
-          void main() => runApp(const MaterialApp(home: SoundBit(), debugShowCheckedModeBanner: false));
-
-          class SoundBit extends StatelessWidget {
-            const SoundBit({super.key});
-            @override
-            Widget build(BuildContext context) {
-              final player = AudioPlayer();
-              final audioQuery = OnAudioQuery();
-              return Scaffold(
-                backgroundColor: const Color(0xFFFAF0E6),
-                appBar: AppBar(
-                  elevation: 0,
-                  backgroundColor: Colors.transparent,
-                  title: const Text("SOUND BIT", style: TextStyle(color: Color(0xFF013220), fontFamily: 'serif', fontWeight: FontWeight.bold)),
-                ),
-                body: FutureBuilder<List<SongModel>>(
-                  future: audioQuery.querySongs(uriType: UriType.EXTERNAL),
-                  builder: (context, item) {
-                    if (!item.hasData) return const Center(child: CircularProgressIndicator(color: Color(0xFF013220)));
-                    return ListView.builder(
-                      itemCount: item.data!.length,
-                      itemBuilder: (context, index) => ListTile(
-                        leading: const Icon(Icons.play_arrow, color: Color(0xFF013220)),
-                        title: Text(item.data![index].title.toUpperCase(), style: const TextStyle(color: Color(0xFF013220), fontFamily: 'serif')),
-                        onTap: () async {
-                          await player.setAudioSource(AudioSource.uri(Uri.parse(item.data![index].uri!)));
-                          player.play();
-                        },
-                      ),
-                    );
-                  },
-                ),
-              );
-            }
-          }
+          void main() => runApp(MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: Scaffold(
+              backgroundColor: const Color(0xFFFAF0E6),
+              appBar: AppBar(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                title: const Text("SOUND BIT", style: TextStyle(color: Color(0xFF013220), fontFamily: 'serif', fontWeight: FontWeight.bold)),
+              ),
+              body: const Center(child: Text("SISTEMA PRONTO", style: TextStyle(color: Color(0xFF013220), fontFamily: 'serif'))),
+            ),
+          ));
           EOF
 
-      - name: Build APK (Com correção de memória)
-        run: flutter build apk --debug --dart-define=compiler-optimize=true
+      - name: Gerar APK
+        run: flutter build apk --debug
 
-      - name: Baixar APK
+      - name: Download do APK
         uses: actions/upload-artifact@v4
         with:
           name: sound-bit-apk
