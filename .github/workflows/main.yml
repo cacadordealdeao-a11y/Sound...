@@ -13,23 +13,19 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Criar Projeto e Injetar Arquivos
+      - name: Construção da Estrutura
         run: |
-          # 1. Cria o projeto básico
+          # 1. Cria o projeto e limpa arquivos fantasmas
           flutter create --platforms android --org com.soundbit --project-name sound_bit .
+          rm -rf android/app/build.gradle
           
-          # 2. RESOLUÇÃO DO ERRO: Criamos o arquivo de configuração manualmente
-          # Isso garante que o arquivo EXISTA e tenha a versão correta
-          mkdir -p android/app
+          # 2. Injeta o Namespace e configurações de erro do Gradle
           echo "android.namespace=com.soundbit.sound_bit" > android/gradle.properties
+          echo "android.useAndroidX=true" >> android/gradle.properties
+          echo "android.enableJetifier=true" >> android/gradle.properties
           
-          # Criamos um build.gradle novo e limpo para evitar o erro do 'sed'
+          # 3. Escreve o build.gradle do zero (Mata o erro de 'No such file')
           cat << 'EOF' > android/app/build.gradle
-          def localProperties = new Properties()
-          def localPropertiesFile = rootProject.file('local.properties')
-          if (localPropertiesFile.exists()) {
-              localPropertiesFile.withReader('UTF-8') { reader -> localProperties.load(reader) }
-          }
           apply plugin: 'com.android.application'
           apply plugin: 'kotlin-android'
           apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
@@ -44,20 +40,20 @@ jobs:
                   versionName "1.0"
               }
           }
-          flutter { source '../..' }
           EOF
 
-      - name: Injetar Dependências e Código
+      - name: App Completo (Creme e Verde)
         run: |
+          # Configura dependências de áudio
           echo "name: sound_bit
-          environment:
-            sdk: '>=3.0.0 <4.0.0'
+          environment: { sdk: '>=3.0.0 <4.0.0' }
           dependencies:
             flutter: { sdk: flutter }
             just_audio: ^0.9.36
             on_audio_query: ^2.5.0
           flutter: { uses-material-design: true }" > pubspec.yaml
 
+          # Código visual limpo sem arco-íris
           mkdir -p lib
           cat << 'EOF' > lib/main.dart
           import 'package:flutter/material.dart';
@@ -78,7 +74,7 @@ jobs:
       - name: Gerar APK
         run: flutter build apk --debug
 
-      - name: Download do APK
+      - name: Download
         uses: actions/upload-artifact@v4
         with:
           name: sound-bit-apk
