@@ -4,32 +4,34 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Checkout Código
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
-      - uses: subosito/flutter-action@v2
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-      
-      - name: Setup e Correcoes
+
+      - name: Criar Projeto e Corrigir Erros
         run: |
-          # 1. Cria o projeto do zero para garantir que as pastas existam
+          # 1. Cria o projeto com nome válido (resolve o erro)
           flutter create --platforms android --org com.soundbit --project-name sound_bit .
           
-          # 2. RESOLVE O ERRO DE DIRETÓRIO: Só roda o sed após o create
-          sed -i 's/minSdkVersion .*/minSdkVersion 21/' android/app/build.gradle
-          echo "android.namespace=com.soundbit.sound_bit" >> android/gradle.properties
-
-      - name: Configurar Arquivos
-        run: |
-          # Configura o ícone se ele existir
-          if [ -f "app_icon.png" ]; then
-            mkdir -p android/app/src/main/res/mipmap-xhdpi
-            cp app_icon.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
-          fi
+          # 2. Aguarda 2 segundos para garantir que o sistema de arquivos registrou as pastas
+          sleep 2
           
+          # 3. Configura o Namespace e Versão (resolve o erro)
+          echo "android.namespace=com.soundbit.sound_bit" >> android/gradle.properties
+          sed -i 's/minSdkVersion .*/minSdkVersion 21/' android/app/build.gradle
+
+      - name: Gerar Arquivos do App
+        run: |
           # Configura as dependências de música
           echo "name: sound_bit
           environment:
@@ -43,46 +45,42 @@ jobs:
           flutter:
             uses-material-design: true" > pubspec.yaml
 
-      - name: Codigo Visual Retro
-        run: |
+          # Cria a pasta lib e o código visual
           mkdir -p lib
           cat << 'EOF' > lib/main.dart
           import 'package:flutter/material.dart';
-          import 'package:just_audio/just_audio.dart';
-          import 'package:on_audio_query/on_audio_query.dart';
 
           void main() => runApp(MaterialApp(
             debugShowCheckedModeBanner: false,
-            theme: ThemeData(fontFamily: 'monospace'),
             home: Scaffold(
               backgroundColor: const Color(0xFFFAF0E6),
               appBar: AppBar(
-                elevation: 0,
                 backgroundColor: Colors.transparent,
-                title: const Text("SOUND BIT", style: TextStyle(color: Color(0xFF013220), fontWeight: FontWeight.bold)),
+                elevation: 0,
+                title: const Text("SOUND BIT", style: TextStyle(color: Color(0xFF013220), fontFamily: 'monospace')),
                 bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(6),
+                  preferredSize: const Size.fromHeight(5),
                   child: Row(
                     children: [
-                      Expanded(child: Container(height: 6, color: Colors.red)),
-                      Expanded(child: Container(height: 6, color: Colors.orange)),
-                      Expanded(child: Container(height: 6, color: Colors.yellow)),
-                      Expanded(child: Container(height: 6, color: Colors.green)),
-                      Expanded(child: Container(height: 6, color: Colors.blue)),
-                      Expanded(child: Container(height: 6, color: Colors.purple)),
+                      Expanded(child: Container(height: 5, color: Colors.red)),
+                      Expanded(child: Container(height: 5, color: Colors.orange)),
+                      Expanded(child: Container(height: 5, color: Colors.yellow)),
+                      Expanded(child: Container(height: 5, color: Colors.green)),
+                      Expanded(child: Container(height: 5, color: Colors.blue)),
+                      Expanded(child: Container(height: 5, color: Colors.purple)),
                     ],
                   ),
                 ),
               ),
-              body: const Center(child: Text("AGUARDANDO MUSICAS...", style: TextStyle(color: Color(0xFF013220)))),
+              body: const Center(child: Text("SISTEMA OPERACIONAL ATIVO", style: TextStyle(color: Color(0xFF013220), fontFamily: 'monospace'))),
             ),
           ));
           EOF
 
-      - name: Criar APK
+      - name: Compilar APK
         run: flutter build apk --debug
 
-      - name: Download do APK
+      - name: Disponibilizar Download
         uses: actions/upload-artifact@v4
         with:
           name: sound-bit-apk
