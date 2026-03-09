@@ -1,30 +1,24 @@
 name: Build Android APK
-on:
-  push:
-    branches: [ master, main ]
+on: push
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Set up Java
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
-          
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
-      - name: Create Android Project Base
-        run: flutter create --platforms android .
+      - name: Setup Android Project
+        run: |
+          flutter create --platforms android --org com.soundbit .
+          # Comando para corrigir o erro de Namespace diretamente no ficheiro build.gradle
+          sed -i 's/namespace = .*/namespace = "com.soundbit.sound_bit"/' android/app/build.gradle || echo "namespace \"com.soundbit.sound_bit\"" >> android/app/build.gradle
 
-      - name: Get dependencies
-        run: flutter pub get
-        
       - name: Build APK
         run: flutter build apk --debug
         
